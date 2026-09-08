@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# Scrapy
+output/
+*.log
+
+# Config/secrets
+.env
+
+# Playwright
+.cache/ms-playwright/
+
+#local test folder on my machine
+test.py 

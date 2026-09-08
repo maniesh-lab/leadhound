@@ -1,0 +1,5 @@
+scrapy>=2.11,<3.0
+scrapy-playwright>=0.0.34
+python-dotenv>=1.0
+pyyaml>=6.0
+email-validator>=2.1
