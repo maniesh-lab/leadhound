@@ -14,7 +14,7 @@ routing → lead scoring → CRM hookup).
 ## What it does
 
 Scrapes real estate agent listings from [nepalyp.com](https://www.nepalyp.com)
-(Nepal Business Directory) across Kathmandu Valley. For each business, it
+(Nepal Business Directory) in Kathmandu. For each business, it
 pulls company name, address, phone number, year established, "years with us,"
 verification status, and rating/review data where available — then validates,
 cleans, and deduplicates the results before writing them to CSV.
@@ -27,7 +27,12 @@ cleans, and deduplicates the results before writing them to CSV.
 - Item pipeline with three stages: validation (drops rows missing a name or
   profile URL), cleaning (fixes address formatting, converts rating/review
   text into real numbers), and deduplication (by the site's own internal
-  company ID)
+  company ID, falling back to the profile URL when a listing has no ID)
+- Optional Playwright rendering — one flag (`-a use_playwright=true`) sends
+  every request through headless Chromium for sites that build their
+  listings with JavaScript; off by default, so static sites stay fast
+- Unit tests for every pipeline stage and for the spider's parsing,
+  pagination, and Playwright switch — no network needed to run them
 - robots.txt respected (`ROBOTSTXT_OBEY = True`) — not a bypassable setting
 - AutoThrottle + manual delay + retry-on-failure settings, tuned for
   politeness over raw speed
@@ -48,14 +53,17 @@ leadhound/
 │   ├── items.py                    # RealEstateAgentItem schema
 │   ├── pipelines.py                # ValidationPipeline, CleaningPipeline, DedupPipeline
 │   ├── middlewares.py              # unmodified Scrapy defaults — no custom need yet
-│   ├── settings.py                 # throttling, retries, logging, robots.txt, UA
+│   ├── settings.py                 # throttling, retries, logging, robots.txt, UA, Playwright
+│   ├── playwright_utils.py         # builds request meta for Playwright-rendered pages
 │   └── spiders/
 │       └── real_estate_agents.py   # the actual crawler
 │
-├── scrapy_playwright_utils.py      # Playwright hook for JS-rendered targets (see Limitations)
 ├── examples/
 │   └── sample_output.csv           # trimmed sample of real scraped output
-├── tests/                          # scaffolded, not yet implemented (see Limitations)
+├── tests/
+│   ├── test_pipelines.py           # validation, cleaning, dedup
+│   └── test_spider.py              # parsing, pagination, Playwright switch
+├── pytest.ini
 ├── output/                         # gitignored — full scrape output lands here
 ├── .env.example
 ├── .gitignore
@@ -70,7 +78,9 @@ leadhound/
 ## How It Works
 
 1. **Fetch** — the spider requests the listing page, identifying itself with a
-   real browser User-Agent
+   real browser User-Agent. With `use_playwright=true`, the page is opened in
+   headless Chromium instead, and the spider waits for the listings to appear
+   before reading the HTML
 2. **Parse** — each business's HTML block is walked individually; name,
    address, phone, and metadata are pulled out via CSS selectors, with XPath
    used specifically where a field needs to be matched by its icon's
@@ -84,8 +94,8 @@ leadhound/
 5. **Clean** — address strings are normalized (stray whitespace from nested
    HTML tags removed), and review/rating fields are converted from text
    (`"3 Reviews"`) into real numbers (`3`)
-6. **Deduplicate** — each business's site-assigned ID is tracked in-memory for
-   the run; repeats are dropped
+6. **Deduplicate** — each business's site-assigned ID (or its profile URL, if
+   the ID is missing) is tracked in-memory for the run; repeats are dropped
 7. **Export** — surviving items are written to CSV
 
 ---
@@ -118,13 +128,26 @@ scrapy crawl real_estate_agents -O output/leads.csv
 Output lands in `output/leads.csv`. A run log is written to `leadhound.log` in
 the project root.
 
+**Optional: render pages with Playwright**
+
+For a target that loads its listings with JavaScript, add one flag:
+```bash
+scrapy crawl real_estate_agents -a use_playwright=true -O output/leads.csv
+```
+nepalyp.com doesn't need it (it sends plain HTML), so it's off by default.
+
+**5. Run the tests**
+```bash
+pytest
+```
+
 ---
 
 ## Example Output
 
 ```csv
 company_id,name,profile_url,address,tagline,phone,established_year,years_with_us,verified,rating,review_count,source_url,scraped_at
-65740,EXCOM GROUP (P) Ltd,https://www.nepalyp.com/company/65740/EXCOM_GROUP_P_Ltd,"Sixth Floor, Four Square Complex, Naxal, Kathmandu, Nepal",Connecting buyers and sellers for real estate success.,977-1-4416941/43,2017,+9,True,5.0,3,https://www.nepalyp.com/category/Estate_agents/city:Kathmandu,2026-09-09T11:32:09Z
+65740,EXCOM GROUP (P) Ltd,https://www.nepalyp.com/company/65740/EXCOM_GROUP_P_Ltd,"Sixth Floor, Four Square Complex, Naxal, Kathmandu, Nepal",Connecting buyers and sellers for real estate success.,977-1-4416941/43,2017,+9,True,5.0,3,https://www.nepalyp.com/category/Estate_agents/city:Kathmandu,2026-09-09T11:32:09.149057+00:00
 ```
 
 See `examples/sample_output.csv` for a fuller sample.
@@ -136,7 +159,8 @@ See `examples/sample_output.csv` for a fuller sample.
 | Tool | Purpose |
 |---|---|
 | `scrapy` | Crawling engine, pagination, item pipelines |
-| `scrapy-playwright` | JS-rendering fallback — installed and configured, unused by the current target (see Limitations) |
+| `scrapy-playwright` | Optional headless-Chromium rendering for JavaScript-heavy targets (`-a use_playwright=true`) |
+| `pytest` | Unit tests for pipelines and spider parsing |
 | `itemadapter` | Uniform read/write access to item fields inside pipelines |
 | Custom pipelines | Validation, data cleaning, deduplication |
 
@@ -154,12 +178,11 @@ Listed deliberately, not hidden — a scraper's boundaries matter as much as its
   reliably defeating that kind of protection requires paid
   proxy/unlocker infrastructure, which is a different project with a
   different cost profile.
-- **Playwright is installed and configured but unused by the current
-  target.** nepalyp.com serves fully static HTML end to end — confirmed by
-  comparing raw `curl` output against what Scrapy receives. The
-  `scrapy-playwright` setup is real infrastructure, ready for a future target
-  that actually needs JS rendering, but this specific scrape doesn't exercise
-  it.
+- **Playwright mode isn't exercised by the current target.** nepalyp.com
+  serves fully static HTML end to end — confirmed by comparing raw `curl`
+  output against what Scrapy receives — so the default run never opens a
+  browser. Playwright mode is tested against a local JavaScript-rendered
+  page, not against a live JS-heavy directory.
 - **Selectors are hardcoded in the spider**, not externalized to a config
   file. A config-driven design (selectors defined per-target in an external
   file, spider reads from it) was part of the original plan and would make
@@ -168,9 +191,10 @@ Listed deliberately, not hidden — a scraper's boundaries matter as much as its
   IDs in memory for the duration of one crawl; it doesn't persist across
   separate runs. Running the spider twice on two different days won't detect
   that a business was already scraped last time.
-- **Tests are scaffolded, not written.** `tests/` exists as a placeholder for
-  pipeline unit tests (validation, cleaning, dedup) and CI integration — a
-  planned addition, not yet built.
+- **Tests use a hand-written HTML page, not a saved copy of the live site.**
+  They prove the parsing logic works on the structure the selectors expect;
+  if nepalyp.com changes its HTML, the tests will still pass while a live
+  crawl returns fewer fields. There's no CI workflow yet — tests run locally.
 - **Some fields are legitimately sparse.** Not every listing on the source
   site has a tagline, a rating, or a "years with us" badge. Rather than force
   these to always exist, the schema treats them as optional — meaning a

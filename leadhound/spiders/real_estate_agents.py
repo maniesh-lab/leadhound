@@ -1,12 +1,29 @@
 import scrapy
 from datetime import datetime, timezone
 from leadhound.items import RealEstateAgentItem
+from leadhound.playwright_utils import playwright_meta
 
 
 class RealEstateAgentsSpider(scrapy.Spider):
     name = "real_estate_agents"
     allowed_domains = ["nepalyp.com"]
     start_urls = ["https://www.nepalyp.com/category/Estate_agents/city:Kathmandu"]
+
+    def __init__(self, use_playwright="false", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Spider arguments from -a always arrive as strings, so "false"
+        # has to be turned into a real boolean by hand.
+        self.use_playwright = str(use_playwright).strip().lower() in ("1", "true", "yes")
+
+    def request_meta(self):
+        """Meta for every request: render with Playwright only if asked to."""
+        if self.use_playwright:
+            return playwright_meta(wait_for_selector="div.company")
+        return {}
+
+    async def start(self):
+        for url in self.start_urls:
+            yield scrapy.Request(url, callback=self.parse, meta=self.request_meta())
 
     def parse(self, response):
         for company in response.css("div.company"):
@@ -51,4 +68,4 @@ class RealEstateAgentsSpider(scrapy.Spider):
 
         next_page = response.css('a.pages_arrow[rel="next"]::attr(href)').get()
         if next_page:
-            yield response.follow(next_page, callback=self.parse)
+            yield response.follow(next_page, callback=self.parse, meta=self.request_meta())

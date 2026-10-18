@@ -82,3 +82,17 @@ AUTOTHROTTLE_TARGET_CONCURRENCY = 1.0
 
 # Set settings whose default value is deprecated to a future-proof value
 FEED_EXPORT_ENCODING = "utf-8"
+
+# Playwright (headless Chromium) for pages that need JavaScript to render.
+# These handlers only use the browser for requests that carry
+# meta={"playwright": True}; every other request goes through Scrapy's normal
+# downloader, so plain-HTML sites like nepalyp.com pay no browser cost.
+# Turn it on for a run with: scrapy crawl real_estate_agents -a use_playwright=true
+DOWNLOAD_HANDLERS = {
+    "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+    "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+}
+TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
+PLAYWRIGHT_BROWSER_TYPE = "chromium"
+PLAYWRIGHT_LAUNCH_OPTIONS = {"headless": True}
+PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT = 30_000  # milliseconds
