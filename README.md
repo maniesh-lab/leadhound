@@ -169,6 +169,7 @@ See `examples/sample_output.csv` for a fuller sample.
 | `scrapy` | Crawling engine, pagination, item pipelines |
 | `scrapy-playwright` | Optional headless-Chromium rendering for JavaScript-heavy targets (`-a use_playwright=true`) |
 | `pytest` | Unit tests for pipelines and spider parsing |
+| `ruff` | Lint check, run with the tests by GitHub Actions on every push |
 | `itemadapter` | Uniform read/write access to item fields inside pipelines |
 | Custom pipelines | Validation, data cleaning, deduplication |
 
