@@ -194,7 +194,8 @@ Listed deliberately, not hidden — a scraper's boundaries matter as much as its
 - **Tests use a hand-written HTML page, not a saved copy of the live site.**
   They prove the parsing logic works on the structure the selectors expect;
   if nepalyp.com changes its HTML, the tests will still pass while a live
-  crawl returns fewer fields. There's no CI workflow yet — tests run locally.
+  crawl returns fewer fields. GitHub Actions runs them, plus a `ruff` lint
+  check, on Python 3.10–3.13 for every push.
 - **Some fields are legitimately sparse.** Not every listing on the source
   site has a tagline, a rating, or a "years with us" badge. Rather than force
   these to always exist, the schema treats them as optional — meaning a
