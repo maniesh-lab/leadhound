@@ -1,5 +1,7 @@
 # leadhound
 
+[![CI](https://github.com/maniesh-lab/leadhound/actions/workflows/ci.yml/badge.svg)](https://github.com/maniesh-lab/leadhound/actions/workflows/ci.yml)
+
 A production-style lead generation scraper built on Scrapy. Crawls business
 directory listings, extracts structured contact data, validates and
 deduplicates it through a custom item pipeline, and exports clean CSV — built
