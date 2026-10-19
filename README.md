@@ -50,12 +50,14 @@ cleans, and deduplicates the results before writing them to CSV.
 leadhound/
 │
 ├── leadhound/
+│   ├── __init__.py
 │   ├── items.py                    # RealEstateAgentItem schema
 │   ├── pipelines.py                # ValidationPipeline, CleaningPipeline, DedupPipeline
 │   ├── middlewares.py              # unmodified Scrapy defaults — no custom need yet
 │   ├── settings.py                 # throttling, retries, logging, robots.txt, UA, Playwright
 │   ├── playwright_utils.py         # builds request meta for Playwright-rendered pages
 │   └── spiders/
+│       ├── __init__.py
 │       └── real_estate_agents.py   # the actual crawler
 │
 ├── examples/
@@ -63,7 +65,9 @@ leadhound/
 ├── tests/
 │   ├── test_pipelines.py           # validation, cleaning, dedup
 │   └── test_spider.py              # parsing, pagination, Playwright switch
+├── .github/workflows/ci.yml        # lint + tests on every push
 ├── pytest.ini
+├── ruff.toml                       # lint rules
 ├── output/                         # gitignored — full scrape output lands here
 ├── .env.example
 ├── .gitignore
