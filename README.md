@@ -74,6 +74,7 @@ leadhound/
 ├── .env.example
 ├── .gitignore
 ├── requirements.txt
+├── requirements-test.txt           # + pytest and ruff for tests and lint
 ├── LICENSE
 ├── scrapy.cfg
 └── README.md
@@ -144,6 +145,7 @@ nepalyp.com doesn't need it (it sends plain HTML), so it's off by default.
 
 **5. Run the tests**
 ```bash
+pip install -r requirements-test.txt
 pytest
 ```
 
