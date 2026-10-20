@@ -2,26 +2,18 @@
 
 [![CI](https://github.com/maniesh-lab/leadhound/actions/workflows/ci.yml/badge.svg)](https://github.com/maniesh-lab/leadhound/actions/workflows/ci.yml)
 
-A Scrapy scraper that collects real estate agent listings from one Nepal
-business directory ([nepalyp.com](https://www.nepalyp.com)), walks every
-results page, then validates, cleans and deduplicates the listings before
-writing a CSV. It obeys robots.txt, slows itself down to be polite, retries
+A Scrapy scraper that collects real estate agent listings in Kathmandu from
+one Nepal business directory ([nepalyp.com](https://www.nepalyp.com)) and walks
+every results page. For each listing it saves the company name, address, phone
+number, year established, "years with us", verification status and
+rating/review data where available, then validates, cleans and deduplicates the
+listings before writing a CSV. It obeys robots.txt, slows itself down to be polite, retries
 failed pages, and logs every run to a file. An optional Playwright mode is
 there for sites that build their pages with JavaScript.
 
 It's the first stage of my lead-gen pipeline: leadhound scrapes the leads,
 [Switchyard](https://github.com/maniesh-lab/Switchyard) cleans, dedupes,
 scores and stores them in Airtable, and an AI scoring step is planned next.
-
----
-
-## What it does
-
-Scrapes real estate agent listings from [nepalyp.com](https://www.nepalyp.com)
-(Nepal Business Directory) in Kathmandu. For each business, it
-pulls company name, address, phone number, year established, "years with us,"
-verification status, and rating/review data where available — then validates,
-cleans, and deduplicates the results before writing them to CSV.
 
 ---
 
@@ -180,6 +172,15 @@ See `examples/sample_output.csv` for a fuller sample.
 
 ---
 
+## Use Case
+
+Built for anyone who needs a structured, exportable list of businesses in a
+given category and region — the raw material a lead-generation or outreach
+workflow runs on — without manually copying listings out of a directory page
+by page.
+
+---
+
 ## Known Limitations
 
 - **No CAPTCHA solving, proxy rotation, or distributed crawling.** This is a
@@ -224,15 +225,6 @@ See `examples/sample_output.csv` for a fuller sample.
 - Email addresses on the source site are gated behind a sign-in wall and are
   deliberately **not** scraped — working around an authentication gate was
   treated as out of scope, not a technical limitation to solve around
-
----
-
-## Use Case
-
-Built for anyone who needs a structured, exportable list of businesses in a
-given category and region — the raw material a lead-generation or outreach
-workflow runs on — without manually copying listings out of a directory page
-by page.
 
 ---
 
