@@ -2,14 +2,16 @@
 
 [![CI](https://github.com/maniesh-lab/leadhound/actions/workflows/ci.yml/badge.svg)](https://github.com/maniesh-lab/leadhound/actions/workflows/ci.yml)
 
-A production-style lead generation scraper built on Scrapy. Crawls business
-directory listings, extracts structured contact data, validates and
-deduplicates it through a custom item pipeline, and exports clean CSV — built
-with the settings and error-handling a scraper needs to run unattended, not a
-one-off script.
+A Scrapy scraper that collects real estate agent listings from one Nepal
+business directory ([nepalyp.com](https://www.nepalyp.com)), walks every
+results page, then validates, cleans and deduplicates the listings before
+writing a CSV. It obeys robots.txt, slows itself down to be polite, retries
+failed pages, and logs every run to a file. An optional Playwright mode is
+there for sites that build their pages with JavaScript.
 
-Built as the first project in a lead-gen automation pipeline (scraper → n8n
-routing → lead scoring → CRM hookup).
+It's the first stage of my lead-gen pipeline: leadhound scrapes the leads,
+[Switchyard](https://github.com/maniesh-lab/Switchyard) cleans, dedupes,
+scores and stores them in Airtable, and an AI scoring step is planned next.
 
 ---
 
@@ -124,7 +126,7 @@ source venv/bin/activate
 **3. Install dependencies**
 ```bash
 pip install -r requirements.txt
-playwright install chromium
+playwright install chromium   # only needed for the optional Playwright mode
 ```
 
 **4. Run the spider**
@@ -145,9 +147,12 @@ nepalyp.com doesn't need it (it sends plain HTML), so it's off by default.
 
 **5. Run the tests**
 ```bash
-pip install -r requirements-test.txt
+pip install -r requirements.txt -r requirements-test.txt
 pytest
+ruff check .
 ```
+
+GitHub Actions runs the same tests and lint check on Python 3.10–3.13 for every push.
 
 ---
 
@@ -177,8 +182,6 @@ See `examples/sample_output.csv` for a fuller sample.
 
 ## Known Limitations
 
-Listed deliberately, not hidden — a scraper's boundaries matter as much as its features:
-
 - **No CAPTCHA solving, proxy rotation, or distributed crawling.** This is a
   single-machine, directory-scale scraper, not built to fight enterprise-grade
   bot protection. During development it was tested against Clutch.co, a
@@ -203,8 +206,7 @@ Listed deliberately, not hidden — a scraper's boundaries matter as much as its
 - **Tests use a hand-written HTML page, not a saved copy of the live site.**
   They prove the parsing logic works on the structure the selectors expect;
   if nepalyp.com changes its HTML, the tests will still pass while a live
-  crawl returns fewer fields. GitHub Actions runs them, plus a `ruff` lint
-  check, on Python 3.10–3.13 for every push.
+  crawl returns fewer fields.
 - **Some fields are legitimately sparse.** Not every listing on the source
   site has a tagline, a rating, or a "years with us" badge. Rather than force
   these to always exist, the schema treats them as optional — meaning a
