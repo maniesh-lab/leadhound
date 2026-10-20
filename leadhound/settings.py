@@ -11,7 +11,7 @@ RETRY_HTTP_CODES = [500, 502, 503, 504, 408, 429]
 LOG_FILE = "leadhound.log"
 LOG_LEVEL = "INFO"
 
-# Crawl responsibly by identifying yourself (and your website) on the user-agent
+# A normal browser User-Agent: Scrapy's default one names itself as a bot
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36"
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = True
