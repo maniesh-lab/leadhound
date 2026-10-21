@@ -1,6 +1,7 @@
 # leadhound
 
 [![CI](https://github.com/maniesh-lab/leadhound/actions/workflows/ci.yml/badge.svg)](https://github.com/maniesh-lab/leadhound/actions/workflows/ci.yml)
+[![Scrape](https://github.com/maniesh-lab/leadhound/actions/workflows/scrape.yml/badge.svg)](https://github.com/maniesh-lab/leadhound/actions/workflows/scrape.yml)
 
 A Scrapy scraper that collects real estate agent listings in Kathmandu from
 one Nepal business directory ([nepalyp.com](https://www.nepalyp.com)) and walks
@@ -52,6 +53,8 @@ leadhound/
 │   ├── middlewares.py              # unmodified Scrapy defaults — no custom need yet
 │   ├── settings.py                 # throttling, retries, logging, robots.txt, UA, Playwright
 │   ├── playwright_utils.py         # builds request meta for Playwright-rendered pages
+│   ├── quality.py                  # data-quality checks for the output CSV
+│   ├── extensions.py               # saves crawl stats to JSON (used by the weekly scrape)
 │   └── spiders/
 │       ├── __init__.py
 │       └── real_estate_agents.py   # the actual crawler
@@ -59,9 +62,15 @@ leadhound/
 ├── examples/
 │   └── sample_output.csv           # trimmed sample of real scraped output
 ├── tests/
+│   ├── conftest.py                 # writes a pass/fail table to the GitHub run page
 │   ├── test_pipelines.py           # validation, cleaning, dedup
-│   └── test_spider.py              # parsing, pagination, Playwright switch
-├── .github/workflows/ci.yml        # lint + tests on every push
+│   ├── test_spider.py              # parsing, pagination, Playwright switch
+│   ├── test_quality.py             # data-quality checker
+│   └── test_extensions.py          # crawl-stats JSON
+├── .github/workflows/
+│   ├── ci.yml                      # lint + tests on every push
+│   └── scrape.yml                  # weekly live scrape + data-quality check
+├── constraints.txt                 # exact versions for the weekly scrape
 ├── pytest.ini
 ├── ruff.toml                       # lint rules
 ├── output/                         # gitignored — full scrape output lands here
@@ -145,6 +154,36 @@ ruff check .
 ```
 
 GitHub Actions runs the same tests and lint check on Python 3.10–3.13 for every push.
+
+---
+
+## How CI Works
+
+Two GitHub Actions workflows:
+
+- **CI** (`ci.yml`): on every push and pull request, runs the ruff lint and
+  every test on Python 3.10–3.13. Tests never touch the network. If a test
+  fails, the run's summary page lists each failing test and why.
+- **Scrape** (`scrape.yml`): every Monday, or on demand from the Actions tab.
+  It runs the tests, scrapes the live site (capped at 20 pages), then checks
+  the CSV with `leadhound/quality.py`:
+  - all columns are present and there are at least 100 rows
+  - name, profile URL, source URL and timestamp are filled on every row
+  - there are no duplicate listings
+  - phone, rating (0–5), review count and established year look right
+
+  The CSV, the crawl stats and the log are uploaded as a downloadable
+  artifact. The run page shows a pass/fail table and how full each column is.
+
+If the site blocks GitHub's servers (common for scrapers on cloud IPs), the
+run stays green with a "blocked" warning, and the tests remain the gate. If
+the scrape works but the data is bad, the run fails.
+
+You can run the same check on your own output:
+```bash
+scrapy crawl real_estate_agents -O output/leads.csv -s STATS_JSON_PATH=output/stats.json
+python -m leadhound.quality output/leads.csv --min-rows 100 --stats output/stats.json
+```
 
 ---
 
