@@ -65,6 +65,8 @@ leadhound/
 │   ├── conftest.py                 # writes a pass/fail table to the GitHub run page
 │   ├── test_pipelines.py           # validation, cleaning, dedup
 │   ├── test_spider.py              # parsing, pagination, Playwright switch
+│   ├── test_real_pages.py          # same, against saved real pages
+│   ├── fixtures/                   # saved real nepalyp.com pages (first + last)
 │   ├── test_quality.py             # data-quality checker
 │   └── test_extensions.py          # crawl-stats JSON
 ├── .github/workflows/
@@ -162,8 +164,10 @@ GitHub Actions runs the same tests and lint check on Python 3.10–3.13 for ever
 Two GitHub Actions workflows:
 
 - **CI** (`ci.yml`): on every push and pull request, runs the ruff lint and
-  every test on Python 3.10–3.13. Tests never touch the network. If a test
-  fails, the run's summary page lists each failing test and why.
+  every test on Python 3.10–3.13. Tests never touch the network: the spider
+  is tested against saved copies of real nepalyp.com pages in
+  `tests/fixtures/`. If a test fails, the run's summary page lists each
+  failing test and why.
 - **Scrape** (`scrape.yml`): every Monday, or on demand from the Actions tab.
   It runs the tests, scrapes the live site (capped at 20 pages), then checks
   the CSV with `leadhound/quality.py`:
@@ -183,6 +187,14 @@ You can run the same check on your own output:
 ```bash
 scrapy crawl real_estate_agents -O output/leads.csv -s STATS_JSON_PATH=output/stats.json
 python -m leadhound.quality output/leads.csv --min-rows 100 --stats output/stats.json
+```
+
+To refresh the saved test pages, save them again with the spider's
+User-Agent from `settings.py`, then swap the site's `data-map-key="..."` value
+for `REDACTED` (GitHub's secret scanner flags it otherwise):
+```bash
+curl -sSL -A "<USER_AGENT from settings.py>" -o tests/fixtures/listing_page_first.html "https://www.nepalyp.com/category/Estate_agents/city:Kathmandu"
+curl -sSL -A "<USER_AGENT from settings.py>" -o tests/fixtures/listing_page_last.html "https://www.nepalyp.com/category/Estate_agents/8/city:Kathmandu"
 ```
 
 ---
@@ -243,10 +255,12 @@ by page.
   IDs in memory for the duration of one crawl; it doesn't persist across
   separate runs. Running the spider twice on two different days won't detect
   that a business was already scraped last time.
-- **Tests use a hand-written HTML page, not a saved copy of the live site.**
-  They prove the parsing logic works on the structure the selectors expect;
-  if nepalyp.com changes its HTML, the tests will still pass while a live
-  crawl returns fewer fields.
+- **The saved test pages are a snapshot (Oct 2026).** The parsing tests run
+  against real saved copies of the first and last results pages, so they
+  catch selectors that don't match real markup. They can't see changes the
+  site makes *after* the snapshot; the weekly live scrape and its data-quality
+  check are there to catch those. Refresh a fixture by saving the page again
+  with curl.
 - **Some fields are legitimately sparse.** Not every listing on the source
   site has a tagline, a rating, or a "years with us" badge. Rather than force
   these to always exist, the schema treats them as optional — meaning a
