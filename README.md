@@ -1,6 +1,7 @@
 # leadhound
 
 [![CI](https://github.com/maniesh-lab/leadhound/actions/workflows/ci.yml/badge.svg)](https://github.com/maniesh-lab/leadhound/actions/workflows/ci.yml)
+[![Scrape](https://github.com/maniesh-lab/leadhound/actions/workflows/scrape.yml/badge.svg)](https://github.com/maniesh-lab/leadhound/actions/workflows/scrape.yml)
 
 A Scrapy scraper that collects real estate agent listings in Kathmandu from
 one Nepal business directory ([nepalyp.com](https://www.nepalyp.com)) and walks
@@ -52,6 +53,8 @@ leadhound/
 │   ├── middlewares.py              # unmodified Scrapy defaults — no custom need yet
 │   ├── settings.py                 # throttling, retries, logging, robots.txt, UA, Playwright
 │   ├── playwright_utils.py         # builds request meta for Playwright-rendered pages
+│   ├── quality.py                  # data-quality checks for the output CSV
+│   ├── extensions.py               # saves crawl stats to JSON (used by the weekly scrape)
 │   └── spiders/
 │       ├── __init__.py
 │       └── real_estate_agents.py   # the actual crawler
@@ -59,9 +62,17 @@ leadhound/
 ├── examples/
 │   └── sample_output.csv           # trimmed sample of real scraped output
 ├── tests/
+│   ├── conftest.py                 # writes a pass/fail table to the GitHub run page
 │   ├── test_pipelines.py           # validation, cleaning, dedup
-│   └── test_spider.py              # parsing, pagination, Playwright switch
-├── .github/workflows/ci.yml        # lint + tests on every push
+│   ├── test_spider.py              # parsing, pagination, Playwright switch
+│   ├── test_real_pages.py          # same, against saved real pages
+│   ├── fixtures/                   # saved real nepalyp.com pages (first + last)
+│   ├── test_quality.py             # data-quality checker
+│   └── test_extensions.py          # crawl-stats JSON
+├── .github/workflows/
+│   ├── ci.yml                      # lint + tests on every push
+│   └── scrape.yml                  # weekly live scrape + data-quality check
+├── constraints.txt                 # exact versions for the weekly scrape
 ├── pytest.ini
 ├── ruff.toml                       # lint rules
 ├── output/                         # gitignored — full scrape output lands here
@@ -148,6 +159,46 @@ GitHub Actions runs the same tests and lint check on Python 3.10–3.13 for ever
 
 ---
 
+## How CI Works
+
+Two GitHub Actions workflows:
+
+- **CI** (`ci.yml`): on every push and pull request, runs the ruff lint and
+  every test on Python 3.10–3.13. Tests never touch the network: the spider
+  is tested against saved copies of real nepalyp.com pages in
+  `tests/fixtures/`. If a test fails, the run's summary page lists each
+  failing test and why.
+- **Scrape** (`scrape.yml`): every Monday, or on demand from the Actions tab.
+  It runs the tests, scrapes the live site (capped at 20 pages), then checks
+  the CSV with `leadhound/quality.py`:
+  - all columns are present and there are at least 100 rows
+  - name, profile URL, source URL and timestamp are filled on every row
+  - there are no duplicate listings
+  - phone, rating (0–5), review count and established year look right
+
+  The CSV, the crawl stats and the log are uploaded as a downloadable
+  artifact. The run page shows a pass/fail table and how full each column is.
+
+If the site blocks GitHub's servers (common for scrapers on cloud IPs), the
+run stays green with a "blocked" warning, and the tests remain the gate. If
+the scrape works but the data is bad, the run fails.
+
+You can run the same check on your own output:
+```bash
+scrapy crawl real_estate_agents -O output/leads.csv -s STATS_JSON_PATH=output/stats.json
+python -m leadhound.quality output/leads.csv --min-rows 100 --stats output/stats.json
+```
+
+To refresh the saved test pages, save them again with the spider's
+User-Agent from `settings.py`, then swap the site's `data-map-key="..."` value
+for `REDACTED` (GitHub's secret scanner flags it otherwise):
+```bash
+curl -sSL -A "<USER_AGENT from settings.py>" -o tests/fixtures/listing_page_first.html "https://www.nepalyp.com/category/Estate_agents/city:Kathmandu"
+curl -sSL -A "<USER_AGENT from settings.py>" -o tests/fixtures/listing_page_last.html "https://www.nepalyp.com/category/Estate_agents/8/city:Kathmandu"
+```
+
+---
+
 ## Example Output
 
 ```csv
@@ -204,10 +255,12 @@ by page.
   IDs in memory for the duration of one crawl; it doesn't persist across
   separate runs. Running the spider twice on two different days won't detect
   that a business was already scraped last time.
-- **Tests use a hand-written HTML page, not a saved copy of the live site.**
-  They prove the parsing logic works on the structure the selectors expect;
-  if nepalyp.com changes its HTML, the tests will still pass while a live
-  crawl returns fewer fields.
+- **The saved test pages are a snapshot (Oct 2026).** The parsing tests run
+  against real saved copies of the first and last results pages, so they
+  catch selectors that don't match real markup. They can't see changes the
+  site makes *after* the snapshot; the weekly live scrape and its data-quality
+  check are there to catch those. Refresh a fixture by saving the page again
+  with curl.
 - **Some fields are legitimately sparse.** Not every listing on the source
   site has a tagline, a rating, or a "years with us" badge. Rather than force
   these to always exist, the schema treats them as optional — meaning a
