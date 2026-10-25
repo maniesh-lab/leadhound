@@ -1,0 +1,86 @@
+# Weekly live scrape.
+#
+# Runs the spider against the real site, checks the CSV with leadhound/quality.py,
+# uploads the CSV + log as a downloadable artifact, and writes a pass/fail
+# summary on the run page.
+#
+# - Green: tests passed and the CSV passed every check.
+# - Green with a yellow warning: the site blocked GitHub's servers (common for
+#   scrapers on cloud IPs). The fixture tests are still the gate.
+# - Red: tests failed, or the scrape worked but the data is bad
+#   (too few rows, empty fields, duplicates, a broken phone/rating, ...).
+
+name: Scrape
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"  # Mondays 03:17 UTC (09:02 in Nepal). Weekly, to be polite to the site.
+  workflow_dispatch:      # the "Run workflow" button on the Actions tab
+    inputs:
+      max_pages:
+        description: "Stop after this many pages (safety cap)"
+        default: "20"
+      min_rows:
+        description: "Fail if the CSV has fewer rows than this"
+        default: "100"
+  push:                   # also run once whenever this file changes, to test the new version
+    branches: [main]
+    paths: [".github/workflows/scrape.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scrape           # never two live scrapes at once
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Scheduled and push runs have no inputs, so fall back to the defaults.
+      MAX_PAGES: ${{ inputs.max_pages || '20' }}
+      MIN_ROWS: ${{ inputs.min_rows || '100' }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: constraints.txt
+
+      - name: Install (exact versions from constraints.txt)
+        run: pip install -r requirements.txt -r requirements-test.txt -c constraints.txt
+
+      - name: Fixture tests (the gate)
+        run: pytest -q
+
+      - name: Scrape the live site
+        # Keep going even if Scrapy errors, so the next step can explain what happened.
+        continue-on-error: true
+        run: >-
+          scrapy crawl real_estate_agents
+          -O output/leads.csv
+          -s CLOSESPIDER_PAGECOUNT=$MAX_PAGES
+          -s STATS_JSON_PATH=output/stats.json
+
+      - name: Check the CSV
+        run: >-
+          python -m leadhound.quality output/leads.csv
+          --min-rows "$MIN_ROWS"
+          --stats output/stats.json
+          --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload CSV, stats and log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: leadhound-output-${{ github.run_number }}
+          path: |
+            output/
+            leadhound.log
+          if-no-files-found: warn
+          retention-days: 30
