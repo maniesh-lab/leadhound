@@ -50,6 +50,11 @@ DOWNLOAD_DELAY = 1
 #EXTENSIONS = {
 #    "scrapy.extensions.telnet.TelnetConsole": None,
 #}
+# Saves crawl stats to JSON, only when run with -s STATS_JSON_PATH=output/stats.json
+# (the weekly CI scrape uses it to tell "site blocked us" from "HTML changed").
+EXTENSIONS = {
+    "leadhound.extensions.StatsToJson": 500,
+}
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
